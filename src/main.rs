@@ -12,6 +12,17 @@ mod api;
 mod models;
 mod routes;
 mod db;
+mod nodes;
+mod engine;
+
+use std::sync::Arc;
+use crate::nodes::NodeRegistry;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub registry: Arc<NodeRegistry>,
+}
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -61,7 +72,16 @@ async fn main() -> anyhow::Result<()> {
     .execute(&pool)
     .await?;
 
-    tracing::info!("Mock user initialized for testing.");
+    seed_demo_data(&pool, mock_user_id).await?;
+
+    let mut registry = NodeRegistry::new();
+    registry.register(Box::new(nodes::core::VariableNode));
+    registry.register(Box::new(nodes::core::ExpressionNode::new()));
+    
+    let state = AppState {
+        pool,
+        registry: Arc::new(registry),
+    };
 
     // Tower layers are applied bottom-to-top. But `axum::Router::layer` applies it to all routes defined BEFORE it.
     let app = Router::new()
@@ -74,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_methods(tower_http::cors::Any),
         )
         .layer(tower_http::trace::TraceLayer::new_for_http())
-        .with_state(pool);
+        .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
@@ -84,5 +104,74 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
+    Ok(())
+}
+
+async fn seed_demo_data(pool: &sqlx::PgPool, owner_id: uuid::Uuid) -> anyhow::Result<()> {
+    let demo_workflow_id = uuid::Uuid::parse_str("d0000000-0000-0000-0000-000000000000").unwrap();
+    
+    let existing = sqlx::query!("SELECT id FROM workflows WHERE id = $1", demo_workflow_id)
+        .fetch_optional(pool)
+        .await?;
+
+    if existing.is_some() {
+        tracing::info!("Demo workflow already exists, skipping seed.");
+        return Ok(());
+    }
+
+    let graph = serde_json::json!({
+        "nodes": [
+            {
+                "id": "node-v1",
+                "type": "variable",
+                "position": { "x": 100, "y": 100 },
+                "data": { "value": "10.0", "label": "a", "inputType": "float" }
+            },
+            {
+                "id": "node-v2",
+                "type": "variable",
+                "position": { "x": 100, "y": 250 },
+                "data": { "value": "5.0", "label": "b", "inputType": "float" }
+            },
+            {
+                "id": "node-exp",
+                "type": "expression",
+                "position": { "x": 400, "y": 175 },
+                "data": { "expression": "a + b" }
+            }
+        ],
+        "edges": [
+            {
+                "id": "edge-1",
+                "source": "node-v1",
+                "target": "node-exp",
+                "sourceHandle": "value",
+                "targetHandle": "a"
+            },
+            {
+                "id": "edge-2",
+                "source": "node-v2",
+                "target": "node-exp",
+                "sourceHandle": "value",
+                "targetHandle": "b"
+            }
+        ]
+    });
+
+    sqlx::query!(
+        r#"
+        INSERT INTO workflows (id, owner_id, name, description, graph)
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+        demo_workflow_id,
+        owner_id,
+        "Math Expression Demo",
+        "A demo showing variables being combined in a Rhai expression.",
+        graph
+    )
+    .execute(pool)
+    .await?;
+
+    tracing::info!("Demo workflow seeded successfully.");
     Ok(())
 }

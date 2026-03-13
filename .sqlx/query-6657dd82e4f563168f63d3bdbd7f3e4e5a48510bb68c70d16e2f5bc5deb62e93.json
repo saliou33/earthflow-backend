@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO connections (owner_id, name, provider, credentials, config)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, owner_id, name, provider as \"provider: _\", config, last_test_ok, last_tested_at, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "provider: _",
+        "type_info": {
+          "Custom": {
+            "name": "connection_provider",
+            "kind": {
+              "Enum": [
+                "postgres",
+                "bigquery",
+                "snowflake",
+                "databricks",
+                "s3",
+                "gcs",
+                "azure_blob",
+                "sentinel_hub",
+                "planet",
+                "wms",
+                "wfs"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_test_ok",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_tested_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "connection_provider",
+            "kind": {
+              "Enum": [
+                "postgres",
+                "bigquery",
+                "snowflake",
+                "databricks",
+                "s3",
+                "gcs",
+                "azure_blob",
+                "sentinel_hub",
+                "planet",
+                "wms",
+                "wfs"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6657dd82e4f563168f63d3bdbd7f3e4e5a48510bb68c70d16e2f5bc5deb62e93"
+}

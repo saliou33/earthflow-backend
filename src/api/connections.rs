@@ -3,9 +3,9 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::models::connection::{Connection, CreateConnectionRequest, UpdateConnectionRequest};
 
 async fn get_mock_user_id() -> Uuid {
@@ -13,8 +13,9 @@ async fn get_mock_user_id() -> Uuid {
 }
 
 pub async fn list_connections(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<Vec<Connection>>, (StatusCode, String)> {
+    let pool = &state.pool;
     let user_id = get_mock_user_id().await;
     
     let connections = sqlx::query_as!(
@@ -22,7 +23,7 @@ pub async fn list_connections(
         "SELECT id, owner_id, name, provider as \"provider: _\", config, last_test_ok, last_tested_at, created_at, updated_at FROM connections WHERE owner_id = $1 ORDER BY updated_at DESC",
         user_id
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -30,9 +31,10 @@ pub async fn list_connections(
 }
 
 pub async fn create_connection(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateConnectionRequest>,
 ) -> Result<(StatusCode, Json<Connection>), (StatusCode, String)> {
+    let pool = &state.pool;
     let user_id = get_mock_user_id().await;
     
     let default_config = serde_json::json!({});
@@ -50,7 +52,7 @@ pub async fn create_connection(
         &payload.credentials,
         payload.config.unwrap_or(default_config)
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -58,9 +60,10 @@ pub async fn create_connection(
 }
 
 pub async fn get_connection(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Connection>, (StatusCode, String)> {
+    let pool = &state.pool;
     let user_id = get_mock_user_id().await;
     
     let connection = sqlx::query_as!(
@@ -69,7 +72,7 @@ pub async fn get_connection(
         id,
         user_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -80,10 +83,11 @@ pub async fn get_connection(
 }
 
 pub async fn update_connection(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateConnectionRequest>,
 ) -> Result<Json<Connection>, (StatusCode, String)> {
+    let pool = &state.pool;
     let user_id = get_mock_user_id().await;
     
     // In a real app the credentials should be re-encrypted here
@@ -106,7 +110,7 @@ pub async fn update_connection(
         id,
         user_id
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
