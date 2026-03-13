@@ -17,11 +17,13 @@ mod engine;
 
 use std::sync::Arc;
 use crate::nodes::NodeRegistry;
+use aws_sdk_s3::Client as S3Client;
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub registry: Arc<NodeRegistry>,
+    pub s3_client: S3Client,
 }
 
 #[derive(Serialize)]
@@ -77,10 +79,34 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = NodeRegistry::new();
     registry.register(Box::new(nodes::core::VariableNode));
     registry.register(Box::new(nodes::core::ExpressionNode::new()));
+    registry.register(Box::new(nodes::io::VectorInputNode));
     
+    let minio_endpoint = std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".to_string());
+    let minio_access_key = std::env::var("MINIO_ACCESS_KEY").unwrap_or_else(|_| "admin".to_string());
+    let minio_secret_key = std::env::var("MINIO_SECRET_KEY").unwrap_or_else(|_| "password".to_string());
+    
+    let s3_config = aws_sdk_s3::config::Builder::new()
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            minio_access_key,
+            minio_secret_key,
+            None,
+            None,
+            "Static",
+        ))
+        .region(aws_sdk_s3::config::Region::new("us-east-1"))
+        .endpoint_url(minio_endpoint)
+        .force_path_style(true)
+        .build();
+    let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
+    
+    // Ensure default bucket exists
+    let bucket_name = std::env::var("MINIO_BUCKET_NAME").unwrap_or_else(|_| "earthflow".to_string());
+    let _ = s3_client.create_bucket().bucket(&bucket_name).send().await;
+
     let state = AppState {
         pool,
         registry: Arc::new(registry),
+        s3_client,
     };
 
     // Tower layers are applied bottom-to-top. But `axum::Router::layer` applies it to all routes defined BEFORE it.

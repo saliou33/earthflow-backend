@@ -2,15 +2,16 @@ use std::collections::HashMap;
 use serde_json::Value;
 use petgraph::visit::EdgeRef;
 use crate::engine::dag::WorkflowGraph;
-use crate::nodes::{NodeRegistry, PortMap};
+use crate::nodes::{NodeRegistry, PortMap, NodeContext};
 
 pub struct WorkflowExecutor<'a> {
     registry: &'a NodeRegistry,
+    ctx: NodeContext,
 }
 
 impl<'a> WorkflowExecutor<'a> {
-    pub fn new(registry: &'a NodeRegistry) -> Self {
-        Self { registry }
+    pub fn new(registry: &'a NodeRegistry, ctx: NodeContext) -> Self {
+        Self { registry, ctx }
     }
 
     pub async fn execute(
@@ -72,7 +73,7 @@ impl<'a> WorkflowExecutor<'a> {
 
             // Execute node
             tracing::info!("Executing node: {} ({})", node_id, type_id);
-            let result = handler.execute(&inputs, params).await
+            let result = handler.execute(&self.ctx, &inputs, params).await
                 .map_err(|e| format!("Node {} failed: {}", node_id, e))?;
 
             node_outputs.insert(node_id, result);

@@ -1,4 +1,5 @@
 pub mod core;
+pub mod io;
 
 use std::collections::HashMap;
 use async_trait::async_trait;
@@ -16,6 +17,12 @@ pub enum PortValue {
 }
 
 pub type PortMap = HashMap<String, PortValue>;
+
+#[derive(Clone)]
+pub struct NodeContext {
+    pub pool: sqlx::PgPool,
+    pub s3_client: aws_sdk_s3::Client,
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NodeMetadata {
@@ -39,6 +46,7 @@ pub trait NodeHandler: Send + Sync {
     
     async fn execute(
         &self,
+        ctx: &NodeContext,
         inputs: &PortMap,
         params: &Value,
     ) -> Result<PortMap, String>;

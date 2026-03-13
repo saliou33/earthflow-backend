@@ -9,7 +9,7 @@ use crate::AppState;
 use crate::models::workflow::{CreateWorkflowRequest, UpdateWorkflowRequest, Workflow};
 use crate::models::execution::WorkflowExecution;
 use crate::engine::executor::WorkflowExecutor;
-use crate::nodes::PortMap;
+use crate::nodes::{PortMap, NodeContext};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -182,7 +182,11 @@ pub async fn execute_workflow(
     let start_time = std::time::Instant::now();
 
     // Execute
-    let executor = WorkflowExecutor::new(&state.registry);
+    let ctx = NodeContext {
+        pool: state.pool.clone(),
+        s3_client: state.s3_client.clone(),
+    };
+    let executor = WorkflowExecutor::new(&state.registry, ctx);
     let results = executor.execute(&id.to_string(), &workflow.graph, cached_outputs, target_node_id)
         .await;
 

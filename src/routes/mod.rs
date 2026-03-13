@@ -2,7 +2,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use crate::api::{connections, workflows};
+use crate::api::{connections, workflows, assets};
 use crate::AppState;
 
 pub fn v1_routes() -> Router<AppState> {
@@ -17,4 +17,5 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/connections", post(connections::create_connection))
         .route("/connections/{id}", get(connections::get_connection))
         .route("/connections/{id}", axum::routing::put(connections::update_connection))
+        .nest("/assets", assets::routes())
 }

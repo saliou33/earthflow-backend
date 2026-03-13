@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde_json::Value;
-use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue};
+use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext};
 use crate::engine::expression::ExpressionEngine;
 
 pub struct VariableNode;
@@ -21,7 +21,7 @@ impl NodeHandler for VariableNode {
         }
     }
 
-    async fn execute(&self, _inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
+    async fn execute(&self, _ctx: &NodeContext, _inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
         let input_type = params["inputType"].as_str().unwrap_or("string");
         let val_raw = &params["value"];
         
@@ -89,7 +89,7 @@ impl NodeHandler for ExpressionNode {
         }
     }
 
-    async fn execute(&self, inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
+    async fn execute(&self, _ctx: &NodeContext, inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
         let script = params["expression"].as_str().ok_or("Missing parameter: expression")?;
         
         let result = self.engine.eval(script, inputs)?;

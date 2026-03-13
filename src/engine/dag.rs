@@ -35,8 +35,21 @@ impl WorkflowGraph {
             let source_handle = edge["sourceHandle"].as_str().unwrap_or("output").to_string();
             let target_handle = edge["targetHandle"].as_str().unwrap_or("input").to_string();
 
-            let source_idx = *node_map.get(source).ok_or(format!("Edge source not found: {}", source))?;
-            let target_idx = *node_map.get(target).ok_or(format!("Edge target not found: {}", target))?;
+            let source_idx = match node_map.get(source) {
+                Some(idx) => *idx,
+                None => {
+                    tracing::warn!("Skipping edge with missing source node: {}", source);
+                    continue;
+                }
+            };
+
+            let target_idx = match node_map.get(target) {
+                Some(idx) => *idx,
+                None => {
+                    tracing::warn!("Skipping edge with missing target node: {}", target);
+                    continue;
+                }
+            };
 
             graph.add_edge(source_idx, target_idx, EdgeMetadata { source_handle, target_handle });
         }
