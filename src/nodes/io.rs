@@ -69,7 +69,7 @@ impl NodeHandler for DrawNode {
         // Using a dummy owner_id for now - in production this would be from the user context
         let owner_id = Uuid::nil();
         
-        let asset = upload_geojson(ctx, name, &geometry, owner_id).await?;
+        let asset = upload_geojson(ctx, name, &geometry, owner_id, "execution", ctx.execution_id).await?;
 
         let mut outputs = PortMap::new();
         outputs.insert("output".to_string(), PortValue::Asset(asset));

@@ -14,6 +14,8 @@ pub struct Asset {
     pub storage_uri: String,
     pub connection_id: Option<Uuid>,
     pub metadata: Option<Value>,
+    pub origin: String,          // "user" or "execution"
+    pub execution_id: Option<Uuid>,  // links execution intermediates to their run
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

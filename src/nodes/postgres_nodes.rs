@@ -69,7 +69,7 @@ impl NodeHandler for SourcePostgresNode {
         // 4. Upload result to S3 as a temporary asset
         // (In a real app, we might check if this should be persistent)
         let owner_id = connection.owner_id;
-        let asset = upload_geojson(ctx, &format!("Import: {}", connection_name), &geojson, owner_id).await?;
+        let asset = upload_geojson(ctx, &format!("Import: {}", connection_name), &geojson, owner_id, "execution", ctx.execution_id).await?;
 
         let mut outputs = PortMap::new();
         outputs.insert("output".to_string(), PortValue::Asset(asset));

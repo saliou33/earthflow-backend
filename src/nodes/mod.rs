@@ -29,6 +29,7 @@ pub type PortMap = HashMap<String, PortValue>;
 pub struct NodeContext {
     pub pool: sqlx::PgPool,
     pub s3_client: aws_sdk_s3::Client,
+    pub execution_id: Option<uuid::Uuid>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -22,6 +22,7 @@ pub fn routes() -> Router<AppState> {
 pub struct AssetQueryParams {
     pub q: Option<String>,
     pub asset_type: Option<String>,
+    pub origin: Option<String>,  // "user" | "execution" | "all"
     pub page: Option<i64>,
     pub limit: Option<i64>,
 }
@@ -60,6 +61,14 @@ async fn list_assets(
     if let Some(t) = params.asset_type {
         query.push_str(&format!(" AND asset_type = ${}", arg_idx));
         bindings.push(t);
+        arg_idx += 1;
+    }
+
+    // Filter by origin; default to "user" so intermediates don't pollute the asset picker
+    let origin_filter = params.origin.as_deref().unwrap_or("user");
+    if origin_filter != "all" {
+        query.push_str(&format!(" AND origin = ${}", arg_idx));
+        bindings.push(origin_filter.to_string());
         arg_idx += 1;
     }
 

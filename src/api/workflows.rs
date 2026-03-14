@@ -176,15 +176,31 @@ pub async fn execute_workflow(
         HashMap::new()
     };
 
+    // 1. Create execution record first (status: running)
+    let execution_id = Uuid::new_v4();
+    sqlx::query!(
+        r#"
+        INSERT INTO workflow_executions (id, workflow_id, owner_id, status, results, execution_time_ms)
+        VALUES ($1, $2, $3, 'running', '{}'::jsonb, 0)
+        "#,
+        execution_id,
+        id,
+        user_id
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to initialize execution: {}", e)))?;
+
     let target_node_id = payload.and_then(|p| p.node_id);
 
     // Start execution timer
     let start_time = std::time::Instant::now();
 
-    // Execute
+    // 2. Execute with context carrying the execution_id
     let ctx = NodeContext {
         pool: state.pool.clone(),
         s3_client: state.s3_client.clone(),
+        execution_id: Some(execution_id),
     };
     let executor = WorkflowExecutor::new(&state.registry, ctx);
     let results = executor.execute(&id.to_string(), &workflow.graph, cached_outputs, target_node_id)
@@ -197,21 +213,21 @@ pub async fn execute_workflow(
         Err(e) => ("failed", serde_json::json!({ "error": e })),
     };
 
-    // Persist execution
+    // 3. Update execution record with results
     sqlx::query!(
         r#"
-        INSERT INTO workflow_executions (workflow_id, owner_id, status, results, execution_time_ms)
-        VALUES ($1, $2, $3, $4, $5)
+        UPDATE workflow_executions 
+        SET status = $1, results = $2, execution_time_ms = $3
+        WHERE id = $4
         "#,
-        id,
-        user_id,
         status,
         results_val,
-        execution_time_ms
+        execution_time_ms,
+        execution_id
     )
     .execute(pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update execution: {}", e)))?;
 
     if status == "failed" {
         return Err((StatusCode::INTERNAL_SERVER_ERROR, results_val["error"].as_str().unwrap_or("Unknown error").to_string()));
