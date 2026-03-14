@@ -32,7 +32,7 @@ async fn test_real_raster_workflow() {
             }
         ],
         "edges": [
-            { "source": "r_in", "sourceHandle": "output", "target": "clip", "targetHandle": "raster" }
+            { "source": "r_in", "sourceHandle": "output", "target": "clip", "targetHandle": "input" }
         ]
     });
 

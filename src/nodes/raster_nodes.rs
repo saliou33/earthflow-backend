@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde_json::Value;
-use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, NodeContext};
+use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext, PORT_INPUT, PORT_OUTPUT};
 
 pub struct RasterClipNode;
 
@@ -12,16 +12,18 @@ impl NodeHandler for RasterClipNode {
             label: "Clip Raster".to_string(),
             description: "Clip raster to a bounding box".to_string(),
             inputs: vec![
-                PortMetadata { id: "raster".to_string(), label: "Raster".to_string(), port_type: "raster".to_string() },
-                PortMetadata { id: "bbox".to_string(), label: "BBox".to_string(), port_type: "bbox".to_string() },
+                PortMetadata { id: PORT_INPUT.to_string(), label: "Data".to_string(), port_type: "any".to_string() },
             ],
-            outputs: vec![PortMetadata { id: "output".to_string(), label: "Output".to_string(), port_type: "raster".to_string() }],
+            outputs: vec![PortMetadata { id: PORT_OUTPUT.to_string(), label: "Output".to_string(), port_type: "raster".to_string() }],
         }
     }
     async fn execute(&self, _ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let asset = inputs.get("raster").cloned().ok_or("Input 'raster' missing")?;
+        let input_val = inputs.get(PORT_INPUT).ok_or("Missing input: input")?;
+        // For Clip, we expect an array of [Raster, BBox] or just the Raster
+        // For now, let's just extract the first asset as the "item to clip"
+        let asset = input_val.as_asset()?;
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), asset);
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(asset.clone()));
         Ok(outputs)
     }
 }
@@ -35,12 +37,12 @@ impl NodeHandler for RasterStatisticsNode {
             type_id: "raster.statistics".to_string(),
             label: "Raster Statistics".to_string(),
             description: "Compute min, max, mean per band".to_string(),
-            inputs: vec![PortMetadata { id: "raster".to_string(), label: "Raster".to_string(), port_type: "raster".to_string() }],
-            outputs: vec![PortMetadata { id: "output".to_string(), label: "Table".to_string(), port_type: "table".to_string() }],
+            inputs: vec![PortMetadata { id: PORT_INPUT.to_string(), label: "Raster".to_string(), port_type: "raster".to_string() }],
+            outputs: vec![PortMetadata { id: PORT_OUTPUT.to_string(), label: "Table".to_string(), port_type: "table".to_string() }],
         }
     }
     async fn execute(&self, _ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let _asset = inputs.get("raster").cloned().ok_or("Input 'raster' missing")?;
+        let _asset = inputs.get(PORT_INPUT).ok_or("Input 'input' missing")?.as_asset()?;
         Ok(PortMap::new())
     }
 }
@@ -61,14 +63,14 @@ impl NodeHandler for HillshadeNode {
             type_id: "raster.hillshade".to_string(),
             label: "Hillshade".to_string(),
             description: "Compute hillshade from DEM".to_string(),
-            inputs: vec![PortMetadata { id: "raster".to_string(), label: "DEM".to_string(), port_type: "raster".to_string() }],
-            outputs: vec![PortMetadata { id: "output".to_string(), label: "Hillshade".to_string(), port_type: "raster".to_string() }],
+            inputs: vec![PortMetadata { id: PORT_INPUT.to_string(), label: "DEM".to_string(), port_type: "raster".to_string() }],
+            outputs: vec![PortMetadata { id: PORT_OUTPUT.to_string(), label: "Hillshade".to_string(), port_type: "raster".to_string() }],
         }
     }
     async fn execute(&self, _ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let asset = inputs.get("raster").cloned().ok_or("Input 'raster' missing")?;
+        let asset = inputs.get(PORT_INPUT).ok_or("Missing input: input")?.as_asset()?;
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), asset);
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(asset.clone()));
         Ok(outputs)
     }
 }

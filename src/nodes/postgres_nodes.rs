@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext};
+use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext, PORT_OUTPUT};
 use crate::nodes::utils::upload_geojson;
 use crate::models::connection::{Connection, ConnectionProvider};
 use sqlx::{PgPool, Row};
@@ -16,7 +16,7 @@ impl NodeHandler for SourcePostgresNode {
             description: "Load vector data from an external Postgres/PostGIS database".to_string(),
             inputs: vec![],
             outputs: vec![PortMetadata {
-                id: "output".to_string(),
+                id: PORT_OUTPUT.to_string(),
                 label: "Vector Data".to_string(),
                 port_type: "vector".to_string(),
             }],
@@ -72,7 +72,7 @@ impl NodeHandler for SourcePostgresNode {
         let asset = upload_geojson(ctx, &format!("Import: {}", connection_name), &geojson, owner_id, "execution", ctx.execution_id).await?;
 
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(asset));
         Ok(outputs)
     }
 }

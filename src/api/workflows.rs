@@ -230,7 +230,9 @@ pub async fn execute_workflow(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update execution: {}", e)))?;
 
     if status == "failed" {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, results_val["error"].as_str().unwrap_or("Unknown error").to_string()));
+        let err_msg = results_val["error"].as_str().unwrap_or("Unknown error").to_string();
+        tracing::error!("Workflow execution failed: {}", err_msg);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
     }
 
     Ok(Json(results_val))

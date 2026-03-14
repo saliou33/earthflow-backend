@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde_json::Value;
-use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext};
+use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext, PORT_OUTPUT};
 use crate::nodes::utils::upload_geojson;
 use crate::models::asset::Asset;
 use uuid::Uuid;
@@ -16,7 +16,7 @@ impl NodeHandler for AssetInputNode {
             description: "Load an asset (Vector/Raster) from the Asset Manager".to_string(),
             inputs: vec![],
             outputs: vec![PortMetadata {
-                id: "output".to_string(),
+                id: PORT_OUTPUT.to_string(),
                 label: "Data".to_string(),
                 port_type: "asset".to_string(),
             }],
@@ -35,7 +35,7 @@ impl NodeHandler for AssetInputNode {
             .map_err(|e| format!("Failed to fetch asset {}: {}", asset_id, e))?;
 
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(asset));
         
         Ok(outputs)
     }
@@ -52,7 +52,7 @@ impl NodeHandler for DrawNode {
             description: "Interactive geometry drawing".to_string(),
             inputs: vec![],
             outputs: vec![PortMetadata {
-                id: "output".to_string(),
+                id: PORT_OUTPUT.to_string(),
                 label: "Geometry".to_string(),
                 port_type: "asset".to_string(),
             }],
@@ -72,7 +72,7 @@ impl NodeHandler for DrawNode {
         let asset = upload_geojson(ctx, name, &geometry, owner_id, "execution", ctx.execution_id).await?;
 
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(asset));
         
         Ok(outputs)
     }

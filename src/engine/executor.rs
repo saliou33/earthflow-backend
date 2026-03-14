@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 use petgraph::visit::EdgeRef;
 use crate::engine::dag::WorkflowGraph;
-use crate::nodes::{NodeRegistry, PortMap, NodeContext};
+use crate::nodes::{NodeRegistry, PortMap, NodeContext, PORT_INPUT};
 
 pub struct WorkflowExecutor<'a> {
     registry: &'a NodeRegistry,
@@ -54,19 +54,31 @@ impl<'a> WorkflowExecutor<'a> {
             let handler = self.registry.get(type_id)
                 .ok_or(format!("No handler registered for type: {}", type_id))?;
 
-            // Resolve inputs from edges
+            // Unified Input Resolution: Aggregate all incoming edges into the "input" key
             let mut inputs = PortMap::new();
             if let Some(node_idx) = dag.node_map.get(&node_id) {
+                let mut incoming_values = Vec::new();
+                
                 // Find all incoming edges
                 for edge in dag.graph.edges_directed(*node_idx, petgraph::Direction::Incoming) {
                     let source_idx = edge.source();
                     let source_id = &dag.graph[source_idx];
                     let metadata = edge.weight();
 
-                    if let Some(prev_outputs) = node_outputs.get(source_id) {
-                        if let Some(val) = prev_outputs.get(&metadata.source_handle) {
-                            inputs.insert(metadata.target_handle.clone(), val.clone());
+                    let source_outputs = node_outputs.get(source_id.as_str());
+                    if let Some(prev_outputs) = source_outputs {
+                        // In the unified system, we usually expect "output" as the source handle
+                        if let Some(val) = prev_outputs.get(metadata.source_handle.as_str()) {
+                            incoming_values.push(val.clone());
                         }
+                    }
+                }
+
+                if !incoming_values.is_empty() {
+                    if incoming_values.len() == 1 {
+                        inputs.insert(PORT_INPUT.to_string(), incoming_values.remove(0));
+                    } else {
+                        inputs.insert(PORT_INPUT.to_string(), crate::nodes::PortValue::Array(incoming_values));
                     }
                 }
             }

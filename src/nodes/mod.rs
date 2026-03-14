@@ -12,6 +12,9 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use serde_json::Value;
 
+pub const PORT_INPUT: &str = "input";
+pub const PORT_OUTPUT: &str = "output";
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum PortValue {
@@ -21,6 +24,46 @@ pub enum PortValue {
     Boolean(bool),
     Asset(crate::models::asset::Asset),
     Json(Value),
+    Array(Vec<PortValue>),
+}
+
+impl PortValue {
+    pub fn as_asset(&self) -> Result<&crate::models::asset::Asset, String> {
+        match self {
+            PortValue::Asset(a) => Ok(a),
+            PortValue::Array(arr) => {
+                if arr.len() == 1 {
+                    arr[0].as_asset()
+                } else {
+                    Err("Expected single asset, but found multiple".to_string())
+                }
+            }
+            _ => Err("Value is not an Asset".to_string()),
+        }
+    }
+
+    pub fn as_assets(&self) -> Result<Vec<&crate::models::asset::Asset>, String> {
+        match self {
+            PortValue::Asset(a) => Ok(vec![a]),
+            PortValue::Array(arr) => {
+                let mut assets = Vec::new();
+                for val in arr {
+                    assets.push(val.as_asset()?);
+                }
+                Ok(assets)
+            }
+            _ => Err("Value is not an Asset or Asset Array".to_string()),
+        }
+    }
+
+    pub fn as_float(&self) -> Result<f64, String> {
+        match self {
+            PortValue::Scalar(f) => Ok(*f),
+            PortValue::Integer(i) => Ok(*i as f64),
+            PortValue::String(s) => s.parse::<f64>().map_err(|e| e.to_string()),
+            _ => Err("Value is not a number".to_string()),
+        }
+    }
 }
 
 pub type PortMap = HashMap<String, PortValue>;

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 use geo::{Centroid, ConvexHull, BoundingRect};
 use geo::geometry::*;
-use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext};
+use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext, PORT_INPUT, PORT_OUTPUT};
 use crate::nodes::utils::{
     download_geojson, upload_geojson,
     geojson_to_geo, point_to_geojson, polygon_to_geojson,
@@ -19,12 +19,12 @@ impl NodeHandler for BufferNode {
             label: "Buffer".to_string(),
             description: "Expand or shrink geometries by a distance".to_string(),
             inputs: vec![PortMetadata {
-                id: "input".to_string(),
+                id: PORT_INPUT.to_string(),
                 label: "Vector Data".to_string(),
                 port_type: "vector".to_string(),
             }],
             outputs: vec![PortMetadata {
-                id: "output".to_string(),
+                id: PORT_OUTPUT.to_string(),
                 label: "Buffered Data".to_string(),
                 port_type: "vector".to_string(),
             }],
@@ -32,11 +32,8 @@ impl NodeHandler for BufferNode {
     }
 
     async fn execute(&self, ctx: &NodeContext, inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
-        let input_val = inputs.get("input").ok_or("Missing input: input")?;
-        let asset = match input_val {
-            PortValue::Asset(a) => a,
-            _ => return Err("Input must be an Asset".to_string()),
-        };
+        let input_val = inputs.get(PORT_INPUT).ok_or("Missing input")?;
+        let asset = input_val.as_asset()?;
 
         // Distance in degrees (approximate: ~0.001 deg ~= 100m at equator)
         let distance_meters = params["distance"].as_f64().unwrap_or(100.0);
@@ -64,7 +61,7 @@ impl NodeHandler for BufferNode {
         let output_asset = upload_geojson(ctx, "Buffered Asset", &geojson, asset.owner_id, "execution", ctx.execution_id).await?;
         
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(output_asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(output_asset));
         Ok(outputs)
     }
 }
@@ -79,12 +76,12 @@ impl NodeHandler for CentroidNode {
             label: "Centroid".to_string(),
             description: "Compute polygon centroids".to_string(),
             inputs: vec![PortMetadata {
-                id: "input".to_string(),
+                id: PORT_INPUT.to_string(),
                 label: "Vector Data".to_string(),
                 port_type: "vector".to_string(),
             }],
             outputs: vec![PortMetadata {
-                id: "output".to_string(),
+                id: PORT_OUTPUT.to_string(),
                 label: "Centroids".to_string(),
                 port_type: "vector".to_string(),
             }],
@@ -92,11 +89,8 @@ impl NodeHandler for CentroidNode {
     }
 
     async fn execute(&self, ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let input_val = inputs.get("input").ok_or("Missing input: input")?;
-        let asset = match input_val {
-            PortValue::Asset(a) => a,
-            _ => return Err("Input must be an Asset".to_string()),
-        };
+        let input_val = inputs.get(PORT_INPUT).ok_or("Missing input")?;
+        let asset = input_val.as_asset()?;
 
         let geojson = download_geojson(ctx, asset).await?;
 
@@ -129,7 +123,7 @@ impl NodeHandler for CentroidNode {
         let output_asset = upload_geojson(ctx, "Centroids", &output_geojson, asset.owner_id, "execution", ctx.execution_id).await?;
         
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(output_asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(output_asset));
         Ok(outputs)
     }
 }
@@ -143,15 +137,12 @@ impl NodeHandler for ConvexHullNode {
             type_id: "vector.convex_hull".to_string(),
             label: "Convex Hull".to_string(),
             description: "Compute the convex hull of geometries".to_string(),
-            inputs: vec![PortMetadata { id: "input".to_string(), label: "Input".to_string(), port_type: "vector".to_string() }],
-            outputs: vec![PortMetadata { id: "output".to_string(), label: "Output".to_string(), port_type: "vector".to_string() }],
+            inputs: vec![PortMetadata { id: PORT_INPUT.to_string(), label: "Input".to_string(), port_type: "vector".to_string() }],
+            outputs: vec![PortMetadata { id: PORT_OUTPUT.to_string(), label: "Output".to_string(), port_type: "vector".to_string() }],
         }
     }
     async fn execute(&self, ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let asset = match inputs.get("input").ok_or("Missing input")? {
-            PortValue::Asset(a) => a,
-            _ => return Err("Invalid input".to_string()),
-        };
+        let asset = inputs.get(PORT_INPUT).ok_or("Missing input")?.as_asset()?;
         let geojson = download_geojson(ctx, asset).await?;
 
         let all_coords = collect_all_coords(&geojson);
@@ -174,7 +165,7 @@ impl NodeHandler for ConvexHullNode {
 
         let output_asset = upload_geojson(ctx, "Convex Hull", &output_geojson, asset.owner_id, "execution", ctx.execution_id).await?;
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(output_asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(output_asset));
         Ok(outputs)
     }
 }
@@ -188,15 +179,12 @@ impl NodeHandler for SimplifyNode {
             type_id: "vector.simplify".to_string(),
             label: "Simplify".to_string(),
             description: "Douglas-Peucker simplification".to_string(),
-            inputs: vec![PortMetadata { id: "input".to_string(), label: "Input".to_string(), port_type: "vector".to_string() }],
-            outputs: vec![PortMetadata { id: "output".to_string(), label: "Output".to_string(), port_type: "vector".to_string() }],
+            inputs: vec![PortMetadata { id: PORT_INPUT.to_string(), label: "Input".to_string(), port_type: "vector".to_string() }],
+            outputs: vec![PortMetadata { id: PORT_OUTPUT.to_string(), label: "Output".to_string(), port_type: "vector".to_string() }],
         }
     }
     async fn execute(&self, ctx: &NodeContext, inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
-        let asset = match inputs.get("input").ok_or("Missing input")? {
-            PortValue::Asset(a) => a,
-            _ => return Err("Invalid input".to_string()),
-        };
+        let asset = inputs.get(PORT_INPUT).ok_or("Missing input")?.as_asset()?;
         let epsilon = params["epsilon"].as_f64().unwrap_or(0.001);
         let mut geojson = download_geojson(ctx, asset).await?;
 
@@ -209,7 +197,7 @@ impl NodeHandler for SimplifyNode {
 
         let output_asset = upload_geojson(ctx, "Simplified", &geojson, asset.owner_id, "execution", ctx.execution_id).await?;
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(output_asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(output_asset));
         Ok(outputs)
     }
 }
@@ -223,21 +211,18 @@ impl NodeHandler for IntersectionNode {
             label: "Intersection".to_string(),
             description: "Compute geometric intersection of two layers".to_string(),
             inputs: vec![
-                PortMetadata { id: "a".to_string(), label: "Input A".to_string(), port_type: "vector".to_string() },
-                PortMetadata { id: "b".to_string(), label: "Input B".to_string(), port_type: "vector".to_string() },
+                PortMetadata { id: PORT_INPUT.to_string(), label: "Input Layers".to_string(), port_type: "vector".to_string() },
             ],
-            outputs: vec![PortMetadata { id: "output".to_string(), label: "Output".to_string(), port_type: "vector".to_string() }],
+            outputs: vec![PortMetadata { id: PORT_OUTPUT.to_string(), label: "Output".to_string(), port_type: "vector".to_string() }],
         }
     }
     async fn execute(&self, ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let asset_a = match inputs.get("a").ok_or("Missing input a")? {
-            PortValue::Asset(a) => a,
-            _ => return Err("Invalid input a".to_string()),
-        };
-        let asset_b = match inputs.get("b").ok_or("Missing input b")? {
-            PortValue::Asset(a) => a,
-            _ => return Err("Invalid input b".to_string()),
-        };
+        let assets = inputs.get(PORT_INPUT).ok_or("Missing input")?.as_assets()?;
+        if assets.len() < 2 {
+            return Err("Intersection requires at least two input layers".to_string());
+        }
+        let asset_a = assets[0];
+        let asset_b = assets[1];
 
         let geojson_a = download_geojson(ctx, asset_a).await?;
         let geojson_b = download_geojson(ctx, asset_b).await?;
@@ -276,7 +261,7 @@ impl NodeHandler for IntersectionNode {
 
         let output_asset = upload_geojson(ctx, "Intersection", &output_geojson, asset_a.owner_id, "execution", ctx.execution_id).await?;
         let mut outputs = PortMap::new();
-        outputs.insert("output".to_string(), PortValue::Asset(output_asset));
+        outputs.insert(PORT_OUTPUT.to_string(), PortValue::Asset(output_asset));
         Ok(outputs)
     }
 }
