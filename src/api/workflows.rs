@@ -242,6 +242,9 @@ pub async fn get_latest_workflow_execution(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    Ok(Json(execution))
+}
+
 pub async fn list_executions(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
