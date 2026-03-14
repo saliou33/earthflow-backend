@@ -1,5 +1,12 @@
 pub mod core;
 pub mod io;
+pub mod utils;
+pub mod vector_nodes;
+pub mod raster_nodes;
+pub mod analysis_nodes;
+pub mod table_nodes;
+pub mod style_nodes;
+pub mod postgres_nodes;
 
 use std::collections::HashMap;
 use async_trait::async_trait;
@@ -12,7 +19,7 @@ pub enum PortValue {
     Integer(i64),
     String(String),
     Boolean(bool),
-    // Placeholder for Milestone 4 (Raster/Vector)
+    Asset(crate::models::asset::Asset),
     Json(Value),
 }
 

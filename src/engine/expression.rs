@@ -29,6 +29,9 @@ impl ExpressionEngine {
                 PortValue::Json(v) => {
                     // Convert JSON to Rhai Dynamic (simplified for POC)
                     Dynamic::from(v.to_string())
+                },
+                PortValue::Asset(a) => {
+                    Dynamic::from(serde_json::to_string(a).unwrap_or_default())
                 }
             };
             scope.push(name.clone(), dynamic_val);

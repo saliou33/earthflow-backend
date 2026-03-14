@@ -1,23 +1,24 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use crate::nodes::{NodeHandler, NodeMetadata, PortMetadata, PortMap, PortValue, NodeContext};
+use crate::nodes::utils::upload_geojson;
 use crate::models::asset::Asset;
 use uuid::Uuid;
 
-pub struct VectorInputNode;
+pub struct AssetInputNode;
 
 #[async_trait]
-impl NodeHandler for VectorInputNode {
+impl NodeHandler for AssetInputNode {
     fn metadata(&self) -> NodeMetadata {
         NodeMetadata {
-            type_id: "vector_input".to_string(),
-            label: "Vector Asset".to_string(),
-            description: "Load a vector dataset from the Asset Manager".to_string(),
+            type_id: "source.asset".to_string(),
+            label: "Asset".to_string(),
+            description: "Load an asset (Vector/Raster) from the Asset Manager".to_string(),
             inputs: vec![],
             outputs: vec![PortMetadata {
                 id: "output".to_string(),
-                label: "Vector Data".to_string(),
-                port_type: "vector".to_string(),
+                label: "Data".to_string(),
+                port_type: "asset".to_string(),
             }],
         }
     }
@@ -33,13 +34,45 @@ impl NodeHandler for VectorInputNode {
             .await
             .map_err(|e| format!("Failed to fetch asset {}: {}", asset_id, e))?;
 
-        // For Milestone 5, we output the asset metadata and storage URI.
-        // Downstream nodes or the Data Panel will use this to stream data.
         let mut outputs = PortMap::new();
+        outputs.insert("output".to_string(), PortValue::Asset(asset));
         
-        // We pass the whole asset as a JSON blob in the PortValue::Json for now
-        // This allows the frontend to have Name, Type, and Storage URI.
-        outputs.insert("output".to_string(), PortValue::Json(serde_json::to_value(asset).unwrap()));
+        Ok(outputs)
+    }
+}
+
+pub struct DrawNode;
+
+#[async_trait]
+impl NodeHandler for DrawNode {
+    fn metadata(&self) -> NodeMetadata {
+        NodeMetadata {
+            type_id: "io.draw".to_string(),
+            label: "Draw Data".to_string(),
+            description: "Interactive geometry drawing".to_string(),
+            inputs: vec![],
+            outputs: vec![PortMetadata {
+                id: "output".to_string(),
+                label: "Geometry".to_string(),
+                port_type: "asset".to_string(),
+            }],
+        }
+    }
+
+    async fn execute(&self, ctx: &NodeContext, _inputs: &PortMap, params: &Value) -> Result<PortMap, String> {
+        let geometry = params["geometry"].clone();
+        if geometry.is_null() {
+            return Err("Missing parameter: geometry".to_string());
+        }
+
+        let name = params["label"].as_str().unwrap_or("Drawn Geometry");
+        // Using a dummy owner_id for now - in production this would be from the user context
+        let owner_id = Uuid::nil();
+        
+        let asset = upload_geojson(ctx, name, &geometry, owner_id).await?;
+
+        let mut outputs = PortMap::new();
+        outputs.insert("output".to_string(), PortValue::Asset(asset));
         
         Ok(outputs)
     }

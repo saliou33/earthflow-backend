@@ -8,23 +8,10 @@ use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod api;
-mod models;
-mod routes;
-mod db;
-mod nodes;
-mod engine;
+// Use modules from the library
+use backend::{routes, nodes, nodes::NodeRegistry, AppState};
 
 use std::sync::Arc;
-use crate::nodes::NodeRegistry;
-use aws_sdk_s3::Client as S3Client;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: sqlx::PgPool,
-    pub registry: Arc<NodeRegistry>,
-    pub s3_client: S3Client,
-}
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -79,7 +66,33 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = NodeRegistry::new();
     registry.register(Box::new(nodes::core::VariableNode));
     registry.register(Box::new(nodes::core::ExpressionNode::new()));
-    registry.register(Box::new(nodes::io::VectorInputNode));
+    registry.register(Box::new(nodes::io::AssetInputNode));
+    registry.register(Box::new(nodes::io::DrawNode));
+    
+    // Register Vector nodes
+    registry.register(Box::new(nodes::vector_nodes::BufferNode));
+    registry.register(Box::new(nodes::vector_nodes::CentroidNode));
+    registry.register(Box::new(nodes::vector_nodes::ConvexHullNode));
+    registry.register(Box::new(nodes::vector_nodes::SimplifyNode));
+    registry.register(Box::new(nodes::vector_nodes::IntersectionNode));
+    
+    // Register Raster nodes
+    registry.register(Box::new(nodes::raster_nodes::RasterClipNode));
+    registry.register(Box::new(nodes::raster_nodes::RasterStatisticsNode));
+    registry.register(Box::new(nodes::raster_nodes::HillshadeNode));
+    
+    // Register Analysis nodes
+    registry.register(Box::new(nodes::analysis_nodes::KernelDensityNode));
+    registry.register(Box::new(nodes::analysis_nodes::ViewshedNode));
+    
+    // Register Table nodes
+    registry.register(Box::new(nodes::table_nodes::TableJoinNode));
+    registry.register(Box::new(nodes::table_nodes::TableFilterNode));
+    
+    // Register Style nodes
+    registry.register(Box::new(nodes::style_nodes::SimpleFillNode));
+    registry.register(Box::new(nodes::style_nodes::ChoroplethNode));
+    registry.register(Box::new(nodes::postgres_nodes::SourcePostgresNode));
     
     let minio_endpoint = std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".to_string());
     let minio_access_key = std::env::var("MINIO_ACCESS_KEY").unwrap_or_else(|_| "admin".to_string());

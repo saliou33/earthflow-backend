@@ -14,8 +14,8 @@ impl NodeHandler for VariableNode {
             description: "A variable that can be referenced by other nodes".to_string(),
             inputs: vec![],
             outputs: vec![PortMetadata {
-                id: "value".to_string(),
-                label: "Value".to_string(),
+                id: "output".to_string(),
+                label: "Output".to_string(),
                 port_type: "any".to_string(),
             }],
         }
@@ -50,11 +50,16 @@ impl NodeHandler for VariableNode {
                 };
                 PortValue::Boolean(b)
             },
+            "asset" => {
+                let asset: crate::models::asset::Asset = serde_json::from_value(val_raw.clone())
+                    .map_err(|e| format!("Invalid asset value: {}", e))?;
+                PortValue::Asset(asset)
+            },
             _ => PortValue::String(val_raw.as_str().unwrap_or("").to_string()),
         };
 
         let mut outputs = PortMap::new();
-        outputs.insert("value".to_string(), port_val);
+        outputs.insert("output".to_string(), port_val);
         Ok(outputs)
     }
 }
@@ -77,12 +82,12 @@ impl NodeHandler for ExpressionNode {
             label: "Expression".to_string(),
             description: "Evaluates a Rhai expression".to_string(),
             inputs: vec![PortMetadata {
-                id: "in".to_string(),
+                id: "input".to_string(),
                 label: "Inputs".to_string(),
                 port_type: "any".to_string(),
             }],
             outputs: vec![PortMetadata {
-                id: "result".to_string(),
+                id: "output".to_string(),
                 label: "Result".to_string(),
                 port_type: "any".to_string(),
             }],
@@ -95,7 +100,7 @@ impl NodeHandler for ExpressionNode {
         let result = self.engine.eval(script, inputs)?;
         
         let mut outputs = PortMap::new();
-        outputs.insert("result".to_string(), result);
+        outputs.insert("output".to_string(), result);
         Ok(outputs)
     }
 }

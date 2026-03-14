@@ -17,5 +17,7 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/connections", post(connections::create_connection))
         .route("/connections/{id}", get(connections::get_connection))
         .route("/connections/{id}", axum::routing::put(connections::update_connection))
+        .route("/connections/{id}", axum::routing::delete(connections::delete_connection))
+        .route("/connections/{id}/test", post(connections::test_connection))
         .nest("/assets", assets::routes())
 }

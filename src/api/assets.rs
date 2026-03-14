@@ -1,9 +1,10 @@
 use axum::{
-    extract::{Path, State, multipart::Multipart},
+    extract::{Path, State, multipart::Multipart, Query},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
+use serde::Deserialize;
 use crate::models::asset::{Asset, CreateAssetRequest};
 use crate::AppState;
 use uuid::Uuid;
@@ -15,6 +16,14 @@ pub fn routes() -> Router<AppState> {
         .route("/upload", post(upload_asset))
         .route("/{id}", get(get_asset).put(update_asset).delete(delete_asset))
         .route("/{id}/url", get(get_asset_url))
+}
+
+#[derive(Deserialize)]
+pub struct AssetQueryParams {
+    pub q: Option<String>,
+    pub asset_type: Option<String>,
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
 }
 
 async fn get_asset(
@@ -30,8 +39,39 @@ async fn get_asset(
     Ok(Json(asset))
 }
 
-async fn list_assets(State(state): State<AppState>) -> Result<Json<Vec<Asset>>, (StatusCode, String)> {
-    let assets = sqlx::query_as::<_, Asset>("SELECT * FROM assets ORDER BY created_at DESC")
+async fn list_assets(
+    State(state): State<AppState>,
+    Query(params): Query<AssetQueryParams>,
+) -> Result<Json<Vec<Asset>>, (StatusCode, String)> {
+    let limit = params.limit.unwrap_or(50);
+    let offset = (params.page.unwrap_or(1) - 1) * limit;
+    
+    let mut query = String::from("SELECT * FROM assets WHERE 1=1");
+    let mut bindings = Vec::new();
+    let mut arg_idx = 1;
+
+    if let Some(q) = params.q {
+        query.push_str(&format!(" AND (name ILIKE ${} OR description ILIKE ${})", arg_idx, arg_idx + 1));
+        bindings.push(format!("%{}%", q));
+        bindings.push(format!("%{}%", q));
+        arg_idx += 2;
+    }
+
+    if let Some(t) = params.asset_type {
+        query.push_str(&format!(" AND asset_type = ${}", arg_idx));
+        bindings.push(t);
+        arg_idx += 1;
+    }
+
+    query.push_str(&format!(" ORDER BY created_at DESC LIMIT ${} OFFSET ${}", arg_idx, arg_idx + 1));
+    
+    let mut q_exec = sqlx::query_as::<_, Asset>(&query);
+    for binding in bindings {
+        q_exec = q_exec.bind(binding);
+    }
+    q_exec = q_exec.bind(limit).bind(offset);
+
+    let assets = q_exec
         .fetch_all(&state.pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

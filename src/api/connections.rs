@@ -116,3 +116,67 @@ pub async fn update_connection(
 
     Ok(Json(connection))
 }
+
+pub async fn test_connection(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let pool = &state.pool;
+    let user_id = get_mock_user_id().await;
+
+    // 1. Fetch connection
+    let connection = sqlx::query_as!(
+        Connection,
+        "SELECT id, owner_id, name, provider as \"provider: _\", config, last_test_ok, last_tested_at, created_at, updated_at FROM connections WHERE id = $1 AND owner_id = $2",
+        id,
+        user_id
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let _conn = connection.ok_or((StatusCode::NOT_FOUND, "Connection not found".to_string()))?;
+
+    // 2. Mock test logic (always succeeds for now)
+    // In a real app, we would use the 'credentials' blob to try to connect to the DB/S3
+    let success = true;
+
+    // 3. Update status
+    sqlx::query!(
+        "UPDATE connections SET last_test_ok = $1, last_tested_at = now() WHERE id = $2",
+        success,
+        id
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if success {
+        Ok(StatusCode::OK)
+    } else {
+        Err((StatusCode::BAD_GATEWAY, "Connection test failed".to_string()))
+    }
+}
+
+pub async fn delete_connection(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let pool = &state.pool;
+    let user_id = get_mock_user_id().await;
+
+    let result = sqlx::query!(
+        "DELETE FROM connections WHERE id = $1 AND owner_id = $2",
+        id,
+        user_id
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if result.rows_affected() == 0 {
+        Err((StatusCode::NOT_FOUND, "Connection not found".to_string()))
+    } else {
+        Ok(StatusCode::NO_CONTENT)
+    }
+}
