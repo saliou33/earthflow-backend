@@ -242,5 +242,41 @@ pub async fn get_latest_workflow_execution(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(execution))
+pub async fn list_executions(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<WorkflowExecution>>, (StatusCode, String)> {
+    let pool = &state.pool;
+    let user_id = get_mock_user_id().await;
+
+    let executions = sqlx::query_as!(
+        WorkflowExecution,
+        "SELECT * FROM workflow_executions WHERE workflow_id = $1 AND owner_id = $2 ORDER BY created_at DESC LIMIT 50",
+        id,
+        user_id
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(executions))
+}
+
+pub async fn clear_executions(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let pool = &state.pool;
+    let user_id = get_mock_user_id().await;
+
+    sqlx::query!(
+        "DELETE FROM workflow_executions WHERE workflow_id = $1 AND owner_id = $2",
+        id,
+        user_id
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

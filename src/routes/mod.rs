@@ -12,6 +12,7 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/workflows/{id}", get(workflows::get_workflow))
         .route("/workflows/{id}", axum::routing::put(workflows::update_workflow))
         .route("/workflows/{id}/execute", post(workflows::execute_workflow))
+        .route("/workflows/{id}/executions", get(workflows::list_executions).delete(workflows::clear_executions))
         .route("/workflows/{id}/executions/latest", get(workflows::get_latest_workflow_execution))
         .route("/connections", get(connections::list_connections))
         .route("/connections", post(connections::create_connection))
