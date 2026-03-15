@@ -16,6 +16,7 @@ pub fn routes() -> Router<AppState> {
         .route("/upload", post(upload_asset))
         .route("/{id}", get(get_asset).put(update_asset).delete(delete_asset))
         .route("/{id}/url", get(get_asset_url))
+        .route("/{id}/tile-url", get(get_asset_tile_url))
 }
 
 #[derive(Deserialize)]
@@ -202,6 +203,8 @@ async fn upload_asset(
         // default guess based on extension
         if original_filename.ends_with(".geojson") || original_filename.ends_with(".json") {
             asset_type = "VECTOR".to_string();
+        } else if original_filename.ends_with(".tif") || original_filename.ends_with(".geotiff") || original_filename.ends_with(".tiff") {
+            asset_type = "RASTER".to_string();
         } else {
             asset_type = "UNKNOWN".to_string();
         }
@@ -277,6 +280,33 @@ async fn get_asset_url(
         "url": presigned_request.uri().to_string(),
         "method": presigned_request.method().to_string(),
         "expires_in": 3600
+    })))
+}
+
+async fn get_asset_tile_url(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let asset = sqlx::query_as::<_, Asset>("SELECT * FROM assets WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("Asset not found: {}", e)))?;
+
+    if asset.asset_type != "RASTER" {
+        return Err((StatusCode::BAD_REQUEST, "Asset is not a RASTER type".to_string()));
+    }
+
+    // TiTiler expects a URL to the COG. We'll use the S3 URI directly.
+    // TiTiler sidecar is configured with MINIO access keys.
+    // The TiTiler URL template for MapLibre/Mapbox:
+    // http://localhost:8001/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?url=s3://bucket/key
+    
+    let titiler_base = std::env::var("TITILER_ENDPOINT").unwrap_or_else(|_| "http://localhost:8001".to_string());
+    let tile_url = format!("{}/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}@1x?url={}", titiler_base, asset.storage_uri);
+
+    Ok(Json(serde_json::json!({
+        "url_template": tile_url,
     })))
 }
 
