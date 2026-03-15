@@ -3,6 +3,8 @@ use crate::nodes::NodeContext;
 use crate::models::asset::Asset;
 use uuid::Uuid;
 use serde_json::{Value, json};
+use crate::nodes::{PortMap, PortValue};
+use crate::engine::expression::ExpressionEngine;
 use geo::Simplify;
 use geo::geometry::*;
 
@@ -196,4 +198,34 @@ pub fn simplify_geojson_geom(geom: &Value, epsilon: f64) -> Value {
         }
     }
     geom.clone() // fallback: return unchanged
+}
+
+/// Evaluates a node parameter, resolving variables and Rhai expressions if necessary.
+pub fn evaluate_parameter(param: &Value, inputs: &PortMap) -> Result<PortValue, String> {
+    match param {
+        Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                Ok(PortValue::Scalar(f))
+            } else if let Some(i) = n.as_i64() {
+                Ok(PortValue::Integer(i))
+            } else {
+                Err("Invalid number format".to_string())
+            }
+        }
+        Value::Bool(b) => Ok(PortValue::Boolean(*b)),
+        Value::String(s) => {
+            // Try to evaluate as a Rhai expression.
+            let engine = ExpressionEngine::new();
+            match engine.eval(s, inputs) {
+                Ok(val) => Ok(val),
+                Err(_) => {
+                    // Fallback: If evaluation fails (e.g. it's just a literal string like "City" or "my_column"),
+                    // return the string itself as a literal.
+                    Ok(PortValue::String(s.clone()))
+                }
+            }
+        }
+        Value::Null => Err("Parameter is missing or null".to_string()),
+        _ => Ok(PortValue::Json(param.clone())),
+    }
 }

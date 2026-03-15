@@ -7,6 +7,7 @@ use crate::nodes::utils::{
     download_geojson, upload_geojson,
     geojson_to_geo, point_to_geojson, polygon_to_geojson,
     collect_all_coords, simplify_geojson_geom,
+    evaluate_parameter,
 };
 
 pub struct BufferNode;
@@ -36,7 +37,9 @@ impl NodeHandler for BufferNode {
         let asset = input_val.as_asset()?;
 
         // Distance in degrees (approximate: ~0.001 deg ~= 100m at equator)
-        let distance_meters = params["distance"].as_f64().unwrap_or(100.0);
+        let distance_meters = evaluate_parameter(&params["distance"], inputs)
+            .and_then(|v| v.as_float())
+            .unwrap_or(100.0);
         let distance_deg = distance_meters / 111_000.0;
 
         let mut geojson = download_geojson(ctx, asset).await?;

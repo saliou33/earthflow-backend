@@ -26,7 +26,7 @@ impl<'a> WorkflowExecutor<'a> {
 
         let mut node_outputs = cached_outputs;
         
-        // Map of node_id -> node_json_data for parameters
+        // Map of node_id -> node_json_data for parameters and labels
         let nodes_data: HashMap<String, &Value> = graph_json["nodes"]
             .as_array()
             .ok_or("Nodes is not an array")?
@@ -35,11 +35,11 @@ impl<'a> WorkflowExecutor<'a> {
             .collect();
 
         for node_id in sorted_nodes {
+            let node_json = nodes_data.get(&node_id).ok_or(format!("Node data not found: {}", node_id))?;
+            let type_id = node_json["type"].as_str().ok_or(format!("Node type not found: {}", node_id))?;
+            let params = &node_json["data"];
+
             // If target_node_id is set, we only care about executing it and its dependencies.
-            // But since we are doing a topological sort, we can just skip nodes that are:
-            // 1. Already in cache
-            // 2. NOT the target_node_id (if target_node_id is set)
-            
             let is_target = target_node_id.as_ref().map_or(false, |id| id == &node_id);
             
             if node_outputs.contains_key(&node_id) && !is_target {
@@ -47,27 +47,32 @@ impl<'a> WorkflowExecutor<'a> {
                 continue;
             }
 
-            let node_json = nodes_data.get(&node_id).ok_or(format!("Node data not found: {}", node_id))?;
-            let type_id = node_json["type"].as_str().ok_or(format!("Node type not found: {}", node_id))?;
-            let params = &node_json["data"];
-
             let handler = self.registry.get(type_id)
                 .ok_or(format!("No handler registered for type: {}", type_id))?;
 
-            // Unified Input Resolution: Aggregate all incoming edges into the "input" key
+            // 1. Build Named Scope: Map ALL previous node labels to their primary "output" value
             let mut inputs = PortMap::new();
+            for (prev_id, outputs) in &node_outputs {
+                if let Some(prev_json) = nodes_data.get(prev_id) {
+                    if let Some(label) = prev_json["data"]["label"].as_str().or(prev_json["type"].as_str()) {
+                        if let Some(val) = outputs.get("output") {
+                            // Sanitize label to be a valid Rhai identifier if possible, 
+                            // but for now we trust the user or the default.
+                            inputs.insert(label.to_string(), val.clone());
+                        }
+                    }
+                }
+            }
+
+            // 2. Add Direct Inputs (Port Connections): Aggregate into "input" key
             if let Some(node_idx) = dag.node_map.get(&node_id) {
                 let mut incoming_values = Vec::new();
-                
-                // Find all incoming edges
                 for edge in dag.graph.edges_directed(*node_idx, petgraph::Direction::Incoming) {
                     let source_idx = edge.source();
                     let source_id = &dag.graph[source_idx];
                     let metadata = edge.weight();
 
-                    let source_outputs = node_outputs.get(source_id.as_str());
-                    if let Some(prev_outputs) = source_outputs {
-                        // In the unified system, we usually expect "output" as the source handle
+                    if let Some(prev_outputs) = node_outputs.get(source_id.as_str()) {
                         if let Some(val) = prev_outputs.get(metadata.source_handle.as_str()) {
                             incoming_values.push(val.clone());
                         }
