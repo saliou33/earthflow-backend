@@ -83,6 +83,51 @@ pub async fn upload_geojson(
     Ok(asset)
 }
 
+pub async fn upload_raster(
+    ctx: &NodeContext, 
+    name: &str, 
+    bytes: Vec<u8>,
+    owner_id: Uuid,
+    origin: &str,
+    execution_id: Option<Uuid>,
+) -> Result<Asset, String> {
+    let bucket_name = std::env::var("MINIO_BUCKET_NAME").unwrap_or_else(|_| "earthflow".to_string());
+    let asset_id = Uuid::new_v4();
+    let object_key = format!("{}/{}.tif", owner_id, asset_id);
+    
+    ctx.s3_client
+        .put_object()
+        .bucket(&bucket_name)
+        .key(&object_key)
+        .body(ByteStream::from(bytes))
+        .content_type("image/tiff")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to upload to S3: {}", e))?;
+        
+    let storage_uri = format!("s3://{}/{}", bucket_name, object_key);
+
+    let asset = sqlx::query_as::<_, Asset>(
+        r#"
+        INSERT INTO assets (id, owner_id, name, asset_type, storage_uri, origin, execution_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+        "#
+    )
+    .bind(asset_id)
+    .bind(owner_id)
+    .bind(name)
+    .bind("RASTER")
+    .bind(storage_uri)
+    .bind(origin)
+    .bind(execution_id)
+    .fetch_one(&ctx.pool)
+    .await
+    .map_err(|e| format!("DB Insert failed: {}", e))?;
+
+    Ok(asset)
+}
+
 /// Parse a GeoJSON coordinate array [lng, lat] into a geo::Coord
 fn coord_from_json(v: &Value) -> Option<Coord<f64>> {
     let arr = v.as_array()?;

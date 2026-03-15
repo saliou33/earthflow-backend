@@ -64,9 +64,8 @@ impl<'a> WorkflowExecutor<'a> {
                 }
             }
 
-            // 2. Add Direct Inputs (Port Connections): Aggregate into "input" key
+            // 2. Add Direct Inputs (Port Connections): Use target_handle as key
             if let Some(node_idx) = dag.node_map.get(&node_id) {
-                let mut incoming_values = Vec::new();
                 for edge in dag.graph.edges_directed(*node_idx, petgraph::Direction::Incoming) {
                     let source_idx = edge.source();
                     let source_id = &dag.graph[source_idx];
@@ -74,16 +73,14 @@ impl<'a> WorkflowExecutor<'a> {
 
                     if let Some(prev_outputs) = node_outputs.get(source_id.as_str()) {
                         if let Some(val) = prev_outputs.get(metadata.source_handle.as_str()) {
-                            incoming_values.push(val.clone());
+                            // Map the output to the specific target named port
+                            inputs.insert(metadata.target_handle.clone(), val.clone());
+                            
+                            // Legacy fallback: also put in "input" if it's the primary input
+                            if metadata.target_handle == "input" || metadata.target_handle == "0" {
+                                inputs.insert(PORT_INPUT.to_string(), val.clone());
+                            }
                         }
-                    }
-                }
-
-                if !incoming_values.is_empty() {
-                    if incoming_values.len() == 1 {
-                        inputs.insert(PORT_INPUT.to_string(), incoming_values.remove(0));
-                    } else {
-                        inputs.insert(PORT_INPUT.to_string(), crate::nodes::PortValue::Array(incoming_values));
                     }
                 }
             }

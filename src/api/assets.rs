@@ -1,18 +1,19 @@
 use axum::{
     extract::{Path, State, multipart::Multipart, Query},
     http::StatusCode,
-    routing::{get, post},
+    routing::{get, post, delete},
     Json, Router,
 };
 use serde::Deserialize;
-use crate::models::asset::{Asset, CreateAssetRequest};
+use crate::models::asset::Asset;
 use crate::AppState;
 use uuid::Uuid;
 use aws_sdk_s3::primitives::ByteStream;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_assets).post(create_asset))
+        .route("/", get(list_assets))
+        .route("/", delete(delete_all_assets))
         .route("/upload", post(upload_asset))
         .route("/{id}", get(get_asset).put(update_asset).delete(delete_asset))
         .route("/{id}/url", get(get_asset_url))
@@ -88,31 +89,6 @@ async fn list_assets(
     Ok(Json(assets))
 }
 
-async fn create_asset(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateAssetRequest>,
-) -> Result<Json<Asset>, (StatusCode, String)> {
-    // For external references or empty placeholders before upload
-    let owner_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(); // mock owner
-    
-    let asset = sqlx::query_as::<_, Asset>(
-        r#"
-        INSERT INTO assets (owner_id, name, description, asset_type, storage_uri)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
-        "#
-    )
-    .bind(owner_id)
-    .bind(payload.name)
-    .bind(payload.description)
-    .bind(payload.asset_type)
-    .bind("") // storage_uri initially empty if creating placeholder
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(asset))
-}
 
 async fn delete_asset(
     State(state): State<AppState>,
@@ -283,16 +259,30 @@ async fn get_asset_url(
         "expires_in": 3600
     });
 
-    // If it's a RASTER, also provide the tile URL template
+    // If it's a RASTER, also provide the tile URL template and TileJSON URL
     if asset.asset_type == "RASTER" {
         let titiler_base = std::env::var("TITILER_ENDPOINT").unwrap_or_else(|_| "http://localhost:8001".to_string());
-        let tile_url = format!("{}/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}@1x?url={}", titiler_base, asset.storage_uri);
+        let tile_url = format!("{}/cog/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}.png?url={}", titiler_base, asset.storage_uri);
+        let tilejson_url = format!("{}/cog/WebMercatorQuad/tilejson.json?url={}", titiler_base, asset.storage_uri);
+        
         if let Some(obj) = response.as_object_mut() {
             obj.insert("url_template".to_string(), serde_json::Value::String(tile_url));
+            obj.insert("tilejson_url".to_string(), serde_json::Value::String(tilejson_url));
         }
     }
 
     Ok(Json(response))
+}
+
+async fn delete_all_assets(
+    State(state): State<AppState>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    sqlx::query("DELETE FROM assets")
+        .execute(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 

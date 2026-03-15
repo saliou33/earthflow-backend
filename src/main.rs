@@ -80,6 +80,9 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(nodes::raster_nodes::RasterClipNode));
     registry.register(Box::new(nodes::raster_nodes::RasterStatisticsNode));
     registry.register(Box::new(nodes::raster_nodes::HillshadeNode));
+    registry.register(Box::new(nodes::raster_nodes::SlopeNode));
+    registry.register(Box::new(nodes::raster_nodes::AspectNode));
+    registry.register(Box::new(nodes::raster_nodes::BandMathNode));
     
     // Register Analysis nodes
     registry.register(Box::new(nodes::analysis_nodes::KernelDensityNode));
