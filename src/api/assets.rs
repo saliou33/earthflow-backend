@@ -204,6 +204,8 @@ async fn upload_asset(
             asset_type = "VECTOR".to_string();
         } else if original_filename.ends_with(".tif") || original_filename.ends_with(".geotiff") || original_filename.ends_with(".tiff") {
             asset_type = "RASTER".to_string();
+        } else if original_filename.ends_with(".csv") || original_filename.ends_with(".parquet") {
+            asset_type = "TABLE".to_string();
         } else {
             asset_type = "UNKNOWN".to_string();
         }
