@@ -25,9 +25,10 @@ fi
 # Run migrations if migrations directory exists
 if [ -d "./migrations" ]; then
   echo "Running database migrations..."
-  # If we have sqlx-cli installed, we can run it here
-  # Alternately, the binary itself could run migrations on startup
-  # For now, we assume the binary handles them or we install sqlx-cli
+  # Ensure the database exists
+  /usr/local/bin/sqlx database create
+  
+  # Run migrations
   /usr/local/bin/sqlx migrate run
 fi
 
