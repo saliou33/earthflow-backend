@@ -64,8 +64,10 @@ impl<'a> WorkflowExecutor<'a> {
                 }
             }
 
-            // 2. Add Direct Inputs (Port Connections): Use target_handle as key
+            // 2. Add Direct Inputs (Port Connections): Aggregate numeric/input handles
             if let Some(node_idx) = dag.node_map.get(&node_id) {
+                let mut generic_inputs = Vec::new();
+
                 for edge in dag.graph.edges_directed(*node_idx, petgraph::Direction::Incoming) {
                     let source_idx = edge.source();
                     let source_id = &dag.graph[source_idx];
@@ -73,14 +75,24 @@ impl<'a> WorkflowExecutor<'a> {
 
                     if let Some(prev_outputs) = node_outputs.get(source_id.as_str()) {
                         if let Some(val) = prev_outputs.get(metadata.source_handle.as_str()) {
-                            // Map the output to the specific target named port
+                            // Map the output to its specific target named port
                             inputs.insert(metadata.target_handle.clone(), val.clone());
                             
-                            // Legacy fallback: also put in "input" if it's the primary input
-                            if metadata.target_handle == "input" || metadata.target_handle == "0" {
-                                inputs.insert(PORT_INPUT.to_string(), val.clone());
+                            // If the port is "input" or numeric, collect it for aggregation
+                            if metadata.target_handle == "input" || metadata.target_handle.parse::<usize>().is_ok() {
+                                generic_inputs.push(val.clone());
                             }
                         }
+                    }
+                }
+
+                // If we found generic inputs, ensure they are stored in the primary "input" port.
+                // Multiple connections will result in a PortValue::Array.
+                if !generic_inputs.is_empty() {
+                    if generic_inputs.len() == 1 {
+                        inputs.insert(PORT_INPUT.to_string(), generic_inputs.remove(0));
+                    } else {
+                        inputs.insert(PORT_INPUT.to_string(), crate::nodes::PortValue::Array(generic_inputs));
                     }
                 }
             }
