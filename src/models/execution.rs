@@ -12,5 +12,6 @@ pub struct WorkflowExecution {
     pub results: serde_json::Value,
     pub execution_time_ms: Option<i64>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
