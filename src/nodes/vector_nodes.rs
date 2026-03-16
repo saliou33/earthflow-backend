@@ -220,8 +220,12 @@ impl NodeHandler for IntersectionNode {
         }
     }
     async fn execute(&self, ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
-        let asset_a = inputs.get("layer_a").or(inputs.get("0")).ok_or("Missing input: layer_a")?.as_asset()?;
-        let asset_b = inputs.get("layer_b").or(inputs.get("1")).ok_or("Missing input: layer_b")?.as_asset()?;
+        let assets = inputs.get(PORT_INPUT).ok_or("Missing input")?.as_assets()?;
+        if assets.len() < 2 {
+            return Err("Intersection requires at least two input layers".to_string());
+        }
+        let asset_a = assets[0];
+        let asset_b = assets[1];
 
         let geojson_a = download_geojson(ctx, asset_a).await?;
         let geojson_b = download_geojson(ctx, asset_b).await?;
