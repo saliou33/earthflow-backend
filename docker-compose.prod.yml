@@ -23,33 +23,32 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
+    image: minio/minio:latest
+    command: server /data --address ":9000" --console-address ":9001"
     networks:
       - earthflow-network
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+      MINIO_SERVER_URL: https://${MINIO_API_DOMAIN:-s3.localhost}
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
     ports:
       - "9000:9000"
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`${MINIO_API_DOMAIN:-s3.localhost}`)"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
 
   backend:
     image: ghcr.io/saliou33/earthflow-backend:latest
     networks:
       - earthflow-network
-    ports:
-      - "8081:8080"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/earthflow
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
-      - TITILER_ENDPOINT=${TITILER_ENDPOINT:-http://titiler:8001}
+      - MINIO_ENDPOINT=https://${MINIO_API_DOMAIN:-s3.localhost}
+      - TITILER_ENDPOINT=https://${TITILER_DOMAIN:-tiles.localhost}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-admin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-password}
       - RUST_ENV=production
@@ -59,16 +58,18 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${BACKEND_DOMAIN:-api.localhost}`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
 
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
     networks:
       - earthflow-network
-    ports:
-      - "8001:80"
     environment:
-      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-admin}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY:-password}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-admin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-password}
       - AWS_REGION=us-east-1
       - AWS_S3_ENDPOINT=http://minio:9000
       - AWS_S3_FORCE_PATH_STYLE=true
@@ -79,6 +80,10 @@ services:
     depends_on:
       minio:
         condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.titiler.rule=Host(`${TITILER_DOMAIN:-tiles.localhost}`)"
+      - "traefik.http.services.titiler.loadbalancer.server.port=80"
 
 volumes:
   db_data:
