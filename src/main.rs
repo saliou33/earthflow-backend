@@ -38,14 +38,17 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
-        if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
-            anyhow::anyhow!("DATABASE_URL is not defined! Production requires this environment variable.")
-        } else {
-            tracing::warn!("DATABASE_URL is not defined. Falling back to localhost for development.");
-            anyhow::Ok("postgres://postgres:postgres@localhost:5432/earthflow".to_string())
+    let database_url = match std::env::var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
+                anyhow::bail!("DATABASE_URL is not defined! Production requires this environment variable.");
+            } else {
+                tracing::warn!("DATABASE_URL is not defined. Falling back to localhost for development.");
+                "postgres://postgres:postgres@localhost:5432/earthflow".to_string()
+            }
         }
-    })??;
+    };
     
     let pool = PgPoolOptions::new()
         .max_connections(5)
