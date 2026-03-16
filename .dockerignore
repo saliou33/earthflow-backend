@@ -1,0 +1,11 @@
+# Ignore target/ directory and local environment configurations
+target/
+.git/
+.env
+
+# Ignore README and other documentation
+README.md
+LICENSE
+
+# Ignore tests
+tests/
