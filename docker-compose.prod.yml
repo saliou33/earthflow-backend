@@ -1,6 +1,13 @@
+networks:
+  earthflow-network:
+    name: earthflow-network
+    driver: bridge
+
 services:
   db:
     image: postgis/postgis:16-3.4
+    networks:
+      - earthflow-network
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -18,6 +25,8 @@ services:
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
+    networks:
+      - earthflow-network
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
@@ -27,15 +36,17 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
 
   backend:
     image: ghcr.io/saliou33/earthflow-backend:latest
+    networks:
+      - earthflow-network
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-earthflow}
       - MINIO_ENDPOINT=http://minio:9000
@@ -49,6 +60,8 @@ services:
 
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
+    networks:
+      - earthflow-network
     ports:
       - "8001:80"
     environment:

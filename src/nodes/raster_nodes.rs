@@ -46,7 +46,10 @@ impl NodeHandler for RasterStatisticsNode {
     async fn execute(&self, _ctx: &NodeContext, inputs: &PortMap, _params: &Value) -> Result<PortMap, String> {
         let asset = inputs.get("raster").ok_or("Input 'raster' missing")?.as_asset()?;
         
-        let titiler_base = std::env::var("TITILER_ENDPOINT").unwrap_or_else(|_| "http://localhost:8001".to_string());
+        let titiler_base = std::env::var("TITILER_ENDPOINT").unwrap_or_else(|_| {
+            tracing::warn!("TITILER_ENDPOINT is not defined. Falling back to localhost for development.");
+            "http://localhost:8001".to_string()
+        });
         let url = format!("{}/cog/statistics?url={}", titiler_base, asset.storage_uri);
         
         tracing::info!("Calling TiTiler Statistics: {}", url);

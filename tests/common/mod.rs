@@ -49,7 +49,7 @@ impl TestHarness {
 
         let registry = Arc::new(registry);
         
-        let minio_endpoint = std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".to_string());
+        let minio_endpoint = std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| { tracing::warn!("MINIO_ENDPOINT is not defined. Falling back to localhost."); "http://localhost:9000".to_string() });
         let minio_access_key = std::env::var("MINIO_ROOT_USER").unwrap_or_else(|_| "admin".to_string());
         let minio_secret_key = std::env::var("MINIO_ROOT_PASSWORD").unwrap_or_else(|_| "password".to_string());
         

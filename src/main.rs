@@ -38,8 +38,14 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/earthflow".to_string());
+    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
+        if std::env::var("RUST_ENV").unwrap_or_default() == "production" {
+            anyhow::anyhow!("DATABASE_URL is not defined! Production requires this environment variable.")
+        } else {
+            tracing::warn!("DATABASE_URL is not defined. Falling back to localhost for development.");
+            anyhow::Ok("postgres://postgres:postgres@localhost:5432/earthflow".to_string())
+        }
+    })??;
     
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -97,7 +103,10 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(nodes::style_nodes::ChoroplethNode));
     registry.register(Box::new(nodes::postgres_nodes::SourcePostgresNode));
     
-    let minio_endpoint = std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".to_string());
+    let minio_endpoint = std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| {
+        tracing::warn!("MINIO_ENDPOINT is not defined. Falling back to localhost for development.");
+        "http://localhost:9000".to_string()
+    });
     let minio_access_key = std::env::var("MINIO_ACCESS_KEY").unwrap_or_else(|_| "admin".to_string());
     let minio_secret_key = std::env::var("MINIO_SECRET_KEY").unwrap_or_else(|_| "password".to_string());
     

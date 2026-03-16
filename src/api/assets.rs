@@ -261,7 +261,10 @@ async fn get_asset_url(
 
     // If it's a RASTER, also provide the tile URL template and TileJSON URL
     if asset.asset_type == "RASTER" {
-        let titiler_base = std::env::var("TITILER_ENDPOINT").unwrap_or_else(|_| "http://localhost:8001".to_string());
+        let titiler_base = std::env::var("TITILER_ENDPOINT").unwrap_or_else(|_| {
+            tracing::warn!("TITILER_ENDPOINT is not defined. Falling back to localhost for development.");
+            "http://localhost:8001".to_string()
+        });
         let tile_url = format!("{}/cog/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}.png?url={}", titiler_base, asset.storage_uri);
         let tilejson_url = format!("{}/cog/WebMercatorQuad/tilejson.json?url={}", titiler_base, asset.storage_uri);
         
